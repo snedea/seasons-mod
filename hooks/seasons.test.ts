@@ -2,17 +2,20 @@ import { expect, mock, test } from 'claude-code/testing'
 
 const OCTOBER = Date.parse('2026-10-16T21:00:00')
 const JULY = Date.parse('2026-07-04T21:00:00')
-const BAND = (columns: number, maxRows = 30) => ({
+// the notice row under the logo, as the engine raises it for
+// CLAUDE_CODE_TMUX_SESSION=seasons (or for a real tmux session)
+const BAND = (columns: number, session = 'seasons') => ({
   plugin: 'seasons',
   surface: 'terminal',
-  component: 'AbovePrompt',
-  requestId: 'band',
-  props: { hasSurvey: false, isWorking: false, maxRows, bodyColumns: columns },
+  component: 'InfoNotice',
+  requestId: `notice:tmux session: ${session}`,
+  viewport: { columns, rows: 40 },
+  props: { text: `tmux session: ${session} · detach with ctrl+b d`, command: null },
 }) as any
 
-// stands in for the engine's own band, drawn when the plugin passes
+// stands in for the engine's own notice, drawn when the plugin passes
 const engineBand = (on: any) =>
-  on('ui.render', async ($: any, e: any) => h($.ui.resolve(e).Text, {}, 'engine band'))
+  on('ui.render', async ($: any, e: any) => h($.ui.resolve(e).Text, {}, 'engine notice'))
 
 function decode(b64: string): Uint32Array {
   const bin = atob(b64)
@@ -21,16 +24,16 @@ function decode(b64: string): Uint32Array {
   return new Uint32Array(bytes.buffer)
 }
 
-test('in October the band is a Raster of the night, 8 rows of half-block pixels', async ($, on) => {
+test('in October the band is a Raster of the night, 8 rows of half-block pixels under the logo', async ($, on) => {
   mock.clock(on, { now: OCTOBER })
   const ui = await $.ui.mount(BAND(120))
   const raster = await ui.find({ type: 'Raster' } as any)
   expect(raster).toBeDefined()
   const { columns, rows, cells } = (raster as any).props
-  expect(columns).toBe(120)
+  expect(columns).toBe(118) // less the notice's gutter
   expect(rows).toBe(8)
   const words = decode(cells)
-  expect(words.length).toBe(120 * 8 * 3)
+  expect(words.length).toBe(118 * 8 * 3)
   // every cell is the upper-half block, and Clawd's orange is somewhere in it
   let hasClawd = false
   for (let i = 0; i < words.length; i += 3) {
@@ -40,18 +43,32 @@ test('in October the band is a Raster of the night, 8 rows of half-block pixels'
   expect(hasClawd).toBe(true)
 })
 
-test('outside October the band is left to the engine', async ($, on) => {
+test('the band fits the witch hat', async ($, on) => {
+  mock.clock(on, { now: OCTOBER })
+  const ui = await $.ui.mount(BAND(120))
+  const words = decode(((await ui.find({ type: 'Raster' } as any)) as any).props.cells)
+  const HAT_LIT = 0x7040a8 // C.hatLit 0x6c42aa on the dither grid
+  let hasHat = false
+  for (let i = 0; i < words.length; i += 3) {
+    if (words[i + 1] === HAT_LIT || words[i + 2] === HAT_LIT) hasHat = true
+  }
+  expect(hasHat).toBe(true)
+})
+
+test('outside October the row is blank, not a stray tmux notice', async ($, on) => {
   mock.clock(on, { now: JULY })
   engineBand(on)
   const ui = await $.ui.mount(BAND(120))
   expect(await ui.find({ type: 'Raster' } as any)).toBeUndefined()
+  expect(await ui.find({ text: 'engine notice' } as any)).toBeUndefined()
 })
 
-test('a band with too little room is left to the engine', async ($, on) => {
+test('a real tmux session notice is left to the engine', async ($, on) => {
   mock.clock(on, { now: OCTOBER })
   engineBand(on)
-  const ui = await $.ui.mount(BAND(120, 4))
+  const ui = await $.ui.mount(BAND(120, 'work'))
   expect(await ui.find({ type: 'Raster' } as any)).toBeUndefined()
+  expect(await ui.find({ text: 'engine notice' } as any)).toBeDefined()
 })
 
 test('/halloween puts the graveyard to sleep and wakes it', async ($, on) => {

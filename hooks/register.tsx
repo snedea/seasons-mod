@@ -1,4 +1,9 @@
-// Seasons: a pixel-art night above the prompt, themed by the month.
+// Seasons: a pixel-art night under the Claude Code logo, themed by the month.
+//
+// The logo block has no render site of its own, but the dim notice line right
+// under it does (InfoNotice). Setting CLAUDE_CODE_TMUX_SESSION=seasons in
+// settings.json env makes the engine raise its "tmux session: seasons" notice
+// on every start, and this mod draws the night in that row instead.
 //
 // October is Halloween (halloween.ts): a moonlit graveyard where Clawd, in a witch
 // hat, sits by the jack-o'-lanterns watching the moon. While a turn runs Clawd
@@ -11,8 +16,9 @@ import type { Register } from 'claude-code'
 import { Scene, isHalloweenSeason, spookyPast, spookyWord } from './halloween'
 
 const FPS = 12
-const MAX_ROWS = 8
-const MIN_ROWS = 6
+const ROWS = 8
+const GUTTER = 2 // the notice's own mark at the left of the row
+const SENTINEL = 'tmux session: seasons'
 const RASTER = 'night'
 const enabled = atom({ plugin: 'seasons', key: 'enabled' } as const, true)
 
@@ -30,7 +36,7 @@ export const register: Register = on => {
     isOn = await read($, enabled)
     await $.command.register({
       name: 'halloween',
-      description: 'Turn the Halloween night above the prompt off or on',
+      description: 'Turn the Halloween night under the logo off or on',
     })
 
     $.clock.every(Math.round(1000 / FPS), () => {
@@ -84,19 +90,17 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+  on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' || !e.props.text.startsWith(SENTINEL)) return next(e)
+    const { Box, Raster } = $.ui.resolve(e)
     inSeason = isHalloweenSeason(await $.clock.now())
-    const isShown = inSeason && (await read($, enabled))
-    const rows = Math.min(MAX_ROWS, e.props.maxRows)
-    if (!isShown || e.surface !== 'terminal' || e.props.hasSurvey || rows < MIN_ROWS) {
+    if (!inSeason || !(await read($, enabled))) {
       site = null
-      return next(e)
+      return <Box />
     }
-    if (e.props.isWorking) scene.mood = 'working'
-    const columns = Math.max(1, Math.min(512, e.props.bodyColumns))
-    site = { requestId: e.requestId, columns, rows }
-    const { Raster } = $.ui.resolve(e)
-    return <Raster key={RASTER} columns={columns} rows={rows} cells={scene.render(columns, rows)} />
+    const columns = Math.max(1, Math.min(512, (e.viewport?.columns ?? 100) - GUTTER))
+    site = { requestId: e.requestId, columns, rows: ROWS }
+    return <Raster key={RASTER} columns={columns} rows={ROWS} cells={scene.render(columns, ROWS)} />
   })
 
   on('ui.render', { component: 'Spinner' }, ($, e, next) =>

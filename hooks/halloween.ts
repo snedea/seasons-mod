@@ -664,7 +664,7 @@ export class Scene {
     const flick = 0.85 + 0.1 * Math.sin(t * 2.7) + 0.05 * Math.sin(t * 7.1)
     if (working) this.glow(lx, top + 3, 7, C.lanternGlow, 0.45 * flick)
 
-    if (this.H >= 14) {
+    if (this.H >= 12) { // at 12 the tip clips; the brim and crown still read
       // the hat's tip droops one way at rest and trails behind on the move
       const hat = CLAWD_HAT.slice()
       const sway = this.moved ? 0 : Math.floor(t / 1.7) % 2
