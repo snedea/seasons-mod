@@ -225,3 +225,130 @@ export function cobweb(
   }
 }
 
+
+/**
+ * Frost creeping out of a corner: spokes like a cobweb's, each feathered with
+ * short side branches the way ice grows on a window.
+ */
+export function frost(cv: Canvas, ax: number, ay: number, rx: number, ry: number, sx: 1 | -1, sy: 1 | -1, color: number): void {
+  const SPOKES = 4
+  for (let i = 0; i < SPOKES; i++) {
+    const a = ((i + 0.5) / SPOKES) * (Math.PI / 2)
+    const dx = sx * Math.cos(a)
+    const dy = sy * Math.sin(a)
+    cv.line(ax, ay, ax + dx * rx, ay + dy * ry, color)
+    for (const k of [0.35, 0.6, 0.85]) {
+      const px = ax + dx * rx * k
+      const py = ay + dy * ry * k
+      const len = 0.22 * (1.1 - k)
+      for (const turn of [0.9, -0.9]) {
+        const b = Math.atan2(dy * ry, dx * rx) + turn
+        cv.line(px, py, px + Math.cos(b) * rx * len, py + Math.sin(b) * ry * len, color)
+      }
+    }
+  }
+}
+
+export type Bloom = { glyph: string; color: number }
+
+/**
+ * A vine climbing out of a corner: one tendril along the top edge and one down
+ * the side, curling as they go, with leaves and flowers (glyphs) along them.
+ */
+export function vine(
+  cv: Canvas,
+  ax: number,
+  ay: number,
+  rx: number,
+  ry: number,
+  sx: 1 | -1,
+  sy: 1 | -1,
+  color: number,
+  blooms: readonly Bloom[],
+): void {
+  const along = (s: number): [number, number] => [ax + sx * rx * s, ay + sy * ry * (0.12 + 0.18 * Math.sin(s * Math.PI * 2.2)) * s * 2]
+  const down = (s: number): [number, number] => [ax + sx * rx * 0.22 * (0.5 + 0.5 * Math.sin(s * Math.PI * 2.6)) * s, ay + sy * ry * s]
+  let n = 0
+  for (const curve of [along, down]) {
+    let [x0, y0] = curve(0)
+    for (let i = 1; i <= 24; i++) {
+      const [x1, y1] = curve(i / 24)
+      cv.line(x0, y0, x1, y1, color)
+      ;[x0, y0] = [x1, y1]
+    }
+    for (const s of [0.3, 0.55, 0.8, 0.98]) {
+      const [x, y] = curve(s)
+      const b = blooms[n++ % blooms.length]
+      cv.text(Math.floor(x / 2), Math.floor(y / 4), b.glyph, b.color)
+    }
+  }
+}
+
+/**
+ * A garland strung from a corner: swags of wire sagging between hooks along
+ * the top edge and down the side, a glyph hung at each swag's low point and
+ * between (fairy lights, flags, hearts). `colorAt` colors the i-th one.
+ */
+export function garland(
+  cv: Canvas,
+  ax: number,
+  ay: number,
+  rx: number,
+  ry: number,
+  sx: 1 | -1,
+  sy: 1 | -1,
+  color: number,
+  glyph: string,
+  colorAt: (i: number) => number,
+): void {
+  let n = 0
+  const hang = (x: number, y: number) => cv.text(Math.floor(x / 2), Math.floor(y / 4), glyph, colorAt(n++))
+  // along the top: two swags
+  for (let k = 0; k < 2; k++) {
+    const x0 = ax + sx * rx * (k / 2)
+    const x1 = ax + sx * rx * ((k + 1) / 2)
+    const sag = Math.min(ry * 0.45, 7)
+    let px = x0
+    let py = ay
+    for (let i = 1; i <= 16; i++) {
+      const s = i / 16
+      const x = x0 + (x1 - x0) * s
+      const y = ay + sy * sag * Math.sin(s * Math.PI)
+      cv.line(px, py, x, y, color)
+      px = x
+      py = y
+      if (i === 5 || i === 11) hang(x, y + sy * 2)
+    }
+  }
+  // down the side: one longer swag curving in
+  let px = ax
+  let py = ay
+  for (let i = 1; i <= 16; i++) {
+    const s = i / 16
+    const x = ax + sx * Math.min(rx * 0.4, 10) * Math.sin(s * Math.PI)
+    const y = ay + sy * ry * s
+    cv.line(px, py, x, y, color)
+    px = x
+    py = y
+    if (i === 6 || i === 12) hang(x + sx * 2, y)
+  }
+}
+
+/** A constellation in a corner: a few stars and the faint lines that join them. */
+export function constellation(cv: Canvas, ax: number, ay: number, rx: number, ry: number, sx: 1 | -1, sy: 1 | -1, color: number, star: number): void {
+  // the Big Dipper, roughly, flipped to open from the corner
+  const pts: [number, number][] = [[0.06, 0.1], [0.28, 0.22], [0.46, 0.3], [0.62, 0.48], [0.6, 0.85], [0.9, 0.92], [0.94, 0.55]]
+  const at = ([u, v]: [number, number]): [number, number] => [ax + sx * rx * u, ay + sy * ry * v]
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [x0, y0] = at(pts[i])
+    const [x1, y1] = at(pts[i + 1])
+    cv.line(x0, y0, x1, y1, color)
+  }
+  const [qx, qy] = at(pts[3])
+  const [ex, ey] = at(pts[6])
+  cv.line(qx, qy, ex, ey, color)
+  for (const p of pts) {
+    const [x, y] = at(p)
+    cv.text(Math.floor(x / 2), Math.floor(y / 4), '✦', star)
+  }
+}

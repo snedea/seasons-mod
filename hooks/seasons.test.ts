@@ -1,9 +1,10 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { promptShape } from './halloween'
+import { MONTHS } from './months'
+import { promptShape } from './scene'
+import { WORDS } from './words'
 
 const OCTOBER = Date.parse('2026-10-16T21:00:00')
-const JULY = Date.parse('2026-07-04T21:00:00')
 // the notice row under the logo, as the engine raises it for
 // CLAUDE_CODE_TMUX_SESSION=seasons (or for a real tmux session)
 const NOTICE = (columns: number, session = 'seasons') => ({
@@ -70,14 +71,6 @@ test('in October the logo block is painted over, not a band added under it', asy
   expect(at.props.left).toBe(-2)
 })
 
-test('outside October the notice row is blank, not a stray tmux notice', async ($, on) => {
-  mock.clock(on, { now: JULY })
-  engine(on)
-  const ui = await $.ui.mount(NOTICE(120))
-  expect(await ui.find({ type: 'Raster' } as any)).toBeUndefined()
-  expect(await ui.find({ text: 'engine InfoNotice' } as any)).toBeUndefined()
-})
-
 test('a real tmux session notice is left to the engine', async ($, on) => {
   mock.clock(on, { now: OCTOBER })
   engine(on)
@@ -102,27 +95,46 @@ test('the prompt keeps its hint line and gets a web at its right end', async ($,
   expect(cells).toMatch(/[жЖ]/) // and the spider on the border
 })
 
-test('outside October the prompt is the engine\'s alone', async ($, on) => {
-  mock.clock(on, { now: JULY })
-  engine(on)
-  const ui = await $.ui.mount(HINT(100))
-  expect(await ui.find({ text: 'engine PromptHint' } as any)).toBeDefined()
-  expect(await ui.find({ type: 'Raster' } as any)).toBeUndefined()
-})
-
-test('/halloween sweeps the cobwebs away and brings them back', async ($, on) => {
+test('every month draws over the logo and the prompt box', async ($, on) => {
   mock.clock(on, { now: OCTOBER })
   engine(on)
-  mock.store(on)
-  const off = await $.command.run({ command: 'halloween', args: '' } as any)
-  expect((off as any).text).toContain('swept')
+  for (let m = 0; m < 12; m++) {
+    await $.command.run({ command: 'seasons', args: String(m + 1) } as any)
+    const header = await $.ui.mount(NOTICE(120))
+    const top = (await header.find({ type: 'Raster', props: { key: 'top' } } as any)) as any
+    expect(text(decode(top.props.cells))).toContain('Claude Code v')
+    await header.unmount()
+    const hint = await $.ui.mount(HINT(100))
+    expect(await hint.find({ text: 'engine PromptHint' } as any)).toBeDefined()
+    const border = text(decode(((await hint.find({ type: 'Raster', props: { key: 'top' } } as any)) as any).props.cells))
+    expect(border).toContain(MONTHS[m].critter.glyphs[0])
+    await hint.unmount()
+  }
+})
+
+test('/seasons previews a month for the session, and auto goes back', async ($, on) => {
+  mock.clock(on, { now: OCTOBER })
+  engine(on)
+  const shown = await $.command.run({ command: 'seasons', args: 'mar' } as any)
+  expect((shown as any).text).toContain('march')
   const ui = await $.ui.mount(HINT(100))
-  expect(await ui.find({ type: 'Raster' } as any)).toBeUndefined()
+  const border = text(decode(((await ui.find({ type: 'Raster', props: { key: 'top' } } as any)) as any).props.cells))
+  expect(border).toContain('☘')
   await ui.unmount()
-  const back = await $.command.run({ command: 'halloween', args: '' } as any)
-  expect((back as any).text).toContain('moon is up')
-  const again = await $.ui.mount(HINT(100))
-  expect(await again.find({ type: 'Raster' } as any)).toBeDefined()
+  const back = await $.command.run({ command: 'seasons', args: 'auto' } as any)
+  expect((back as any).text).toContain('october')
+  const bad = await $.command.run({ command: 'seasons', args: 'smarch' } as any)
+  expect((bad as any).text).toContain('Try')
+})
+
+test('each month has its own words, none naming a holiday', async () => {
+  const names = /halloween|christmas|valentine|easter|thanksgiving|patrick|independence|new year's/i
+  expect(WORDS.length).toBe(12)
+  for (const w of WORDS) {
+    expect(w.verbs.length).toBeGreaterThan(10)
+    expect(w.past.length).toBeGreaterThan(5)
+    for (const s of [...w.verbs, ...w.past, ...w.taglines]) expect(names.test(s)).toBe(false)
+  }
 })
 
 test('the draft\'s rows and the caret column follow wrapping and newlines', async () => {

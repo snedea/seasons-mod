@@ -1,7 +1,7 @@
 {
   "name": "seasons",
-  "version": "0.1.0",
-  "description": "Seasonal pixel-art night above the prompt. October: a Halloween graveyard where Clawd, in a witch hat, keeps watch.",
+  "version": "0.2.0",
+  "description": "Dresses Claude Code for the month: Clawd in a seasonal hat, the logo block and prompt box decorated, critters that follow your cursor, and themed spinner words. All twelve months.",
   "types": "./types/index.d.ts",
   "author": {
     "name": "snedea"

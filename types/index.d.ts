@@ -14,6 +14,6 @@ export type PromptLayout = {
 
 declare module 'claude-code' {
   interface PluginState {
-    seasons: { enabled: boolean; prompt: PromptLayout }
+    seasons: { enabled: boolean; prompt: PromptLayout; preview: number }
   }
 }

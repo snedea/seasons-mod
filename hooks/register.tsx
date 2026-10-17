@@ -1,24 +1,26 @@
-// Seasons: Halloween in the chrome Claude Code already draws, not in a band of
-// its own.
+// Seasons: the month, drawn into the chrome Claude Code already draws, not in a
+// band of its own.
 //
 // The logo block has no render site, but the dim notice line right under it does
 // (InfoNotice). Setting CLAUDE_CODE_TMUX_SESSION=seasons in settings.json env makes
 // the engine raise its "tmux session: seasons" notice on every start; this mod
-// draws a one-row graveyard there and, from it, paints absolutely placed Rasters
-// up over the logo: Clawd in a witch hat, the title in pumpkin orange, a moon, a
-// corner cobweb and its spider. The prompt's hint line (PromptHint) is drawn by
-// the engine as ever, with Rasters placed over the box's borders: a corner web
-// at the box's right end (away from the draft and the newest text), a spider that
-// walks to the caret while you type and patrols while Claude works, a ghost on
-// the bottom border. Before the first prompt a spider lets itself down into the
-// empty transcript to say hello.
+// draws a one-row yard there and, from it, paints absolutely placed Rasters up
+// over the logo: Clawd in the month's hat, the title in the month's colors, the
+// sky, a corner decoration. The prompt's hint line (PromptHint) is drawn by the
+// engine as ever, with Rasters placed over the box's borders: a decoration at
+// the box's right end (away from the draft and the newest text), a critter that
+// walks to the caret while you type and patrols while Claude works, something
+// drifting on the bottom border. Before the first prompt something comes down
+// into the empty transcript to say hello. What each month looks like is in
+// months/; scene.ts moves it all.
 //
-// /halloween turns it off and on, remembered across sessions.
+// /seasons turns it off and on, and previews any month for the session.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Canvas, Run } from './canvas'
-import { HEADER_ROWS, Haunt, WEB_COLUMNS, isHalloweenSeason, promptShape, spookyPast, spookyWord } from './halloween'
+import { MONTHS } from './months'
+import { HEADER_ROWS, Scene, WEB_COLUMNS, promptShape } from './scene'
 import type { PromptLayout } from '../types'
 
 const FPS = 10
@@ -28,6 +30,9 @@ const CLAWD_COLUMNS = 11 // Clawd and the gap before the logo's text
 const MODEL_LINE = 34 // room left for the logo's model and plan line, which no API names
 
 const enabled = atom({ plugin: 'seasons', key: 'enabled' } as const, true)
+// a month shown in place of the calendar's, for this session only
+const preview = atom({ plugin: 'seasons', key: 'preview' } as const, -1)
+const NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
 const promptLayout = atom({ plugin: 'seasons', key: 'prompt' } as const, {
   rows: 1,
   bash: false,
@@ -56,10 +61,10 @@ async function blit($: EngineInterface, site: Site, sent: Map<string, string>): 
 }
 
 // The draft decides where the box's top border is, and where the caret is.
-async function track($: EngineInterface, haunt: Haunt, columns: number, typed: boolean): Promise<void> {
+async function track($: EngineInterface, scene: Scene, columns: number, typed: boolean): Promise<void> {
   const { text, cursor } = await $.prompt.read()
   const { rows, caret, wide } = promptShape(text, cursor, columns)
-  if (typed) haunt.typed(caret)
+  if (typed) scene.typed(caret)
   const bash = text.startsWith('!')
   const now = await read($, promptLayout)
   if (now.rows !== rows || now.bash !== bash || now.wide !== wide) {
@@ -67,23 +72,53 @@ async function track($: EngineInterface, haunt: Haunt, columns: number, typed: b
   }
 }
 
+// The month to show: the preview if one is set, else the calendar's.
+async function monthNow($: EngineInterface): Promise<number> {
+  const p = await read($, preview)
+  return p >= 0 ? p : new Date(await $.clock.now()).getMonth()
+}
+
+// "mar", "March", "3": the month index, or -1.
+function parseMonth(arg: string): number {
+  const a = arg.trim().toLowerCase()
+  const n = Number(a)
+  if (Number.isInteger(n) && n >= 1 && n <= 12) return n - 1
+  return a.length >= 3 ? NAMES.findIndex(m => m.startsWith(a)) : -1
+}
+
+type Shown = { month: number }
+
+// Follows the calendar or the preview; a new month swaps the theme and redraws.
+async function follow($: EngineInterface, scene: Scene, shown: Shown, sent: Map<string, string>): Promise<void> {
+  const m = await monthNow($)
+  if (m === shown.month) return
+  shown.month = m
+  scene.theme = MONTHS[m]
+  sent.clear()
+  $.ui.invalidate('ui.render')
+}
+
 export const register: Register = on => {
-  const haunt = new Haunt()
+  const scene = new Scene(MONTHS[new Date().getMonth()])
   let header: Site | null = null
   let greeting: Site | null = null
   let prompt: Site | null = null
   let promptColumns = 0
-  let inSeason = false
+  const shown: Shown = { month: -1 }
   let isOn = true
   let isBusy = false
   let version = ''
   let cwd = ''
   const sent = new Map<string, string>()
 
-  const live = () => inSeason && isOn
+  const live = () => isOn && shown.month >= 0
+
 
   on('session.start', async ($, e, next) => {
-    inSeason = isHalloweenSeason(await $.clock.now())
+    // SEASONS_MONTH=mar (or 3) starts the session on that month, as /seasons mar would
+    const forced = parseMonth((await $.env.get('SEASONS_MONTH')) ?? '')
+    if (forced >= 0) await update($, preview, () => forced)
+    await follow($, scene, shown, sent)
     const saved = await $.store.get('enabled')
     if (saved === false) await update($, enabled, () => false)
     isOn = await read($, enabled)
@@ -93,14 +128,14 @@ export const register: Register = on => {
     const status = settings.statusLine ? 1 : 0
     await update($, promptLayout, p => ({ ...p, status }))
     await $.command.register({
-      name: 'halloween',
-      description: 'Turn the Halloween decorations off or on',
+      name: 'seasons',
+      description: 'Turn the decorations off or on, or preview a month: /seasons mar, /seasons auto',
     })
 
     let wasGreeting = true
     $.clock.every(Math.round(1000 / FPS), () => {
-      haunt.step(1 / FPS, promptColumns)
-      if (wasGreeting && haunt.greet === null) {
+      scene.step(1 / FPS, promptColumns)
+      if (wasGreeting && scene.greet === null) {
         wasGreeting = false
         greeting = null
         $.ui.invalidate('ui.render') // the thread is home: drop its Raster
@@ -121,71 +156,78 @@ export const register: Register = on => {
       })().finally(() => { isBusy = false })
     })
     // the month can turn over in a long session
-    $.clock.every(60_000, () => {
-      void $.clock.now().then(ms => {
-        const now = isHalloweenSeason(ms)
-        if (now !== inSeason) { inSeason = now; $.ui.invalidate('ui.render') }
-      })
-    })
+    $.clock.every(60_000, () => void follow($, scene, shown, sent))
 
     return next(e)
   })
 
-  on('command.run', { command: 'halloween' }, async $ => {
-    const value = !(await read($, enabled))
-    await update($, enabled, () => value)
-    await $.store.set('enabled', value)
-    isOn = value
-    sent.clear()
-    inSeason = isHalloweenSeason(await $.clock.now())
-    if (!inSeason) return { text: 'Halloween is an October thing; it will be back next October.' }
-    return { text: value ? 'The moon is up. Happy Halloween.' : 'The cobwebs are swept away. /halloween brings them back.' }
+  on('command.run', { command: 'seasons' }, async ($, e) => {
+    const arg = e.args.trim().toLowerCase()
+    if (arg === '' || arg === 'on' || arg === 'off') {
+      const value = arg === '' ? !(await read($, enabled)) : arg === 'on'
+      await update($, enabled, () => value)
+      await $.store.set('enabled', value)
+      isOn = value
+      sent.clear()
+      $.ui.invalidate('ui.render')
+      return { text: value ? 'Decorations are up.' : 'Decorations are packed away. /seasons brings them back.' }
+    }
+    if (arg === 'auto') {
+      await update($, preview, () => -1)
+      await follow($, scene, shown, sent)
+      return { text: `Back to the calendar: ${NAMES[shown.month]}.` }
+    }
+    const m = parseMonth(arg)
+    if (m < 0) return { text: 'Try /seasons mar, /seasons 12, /seasons auto, or /seasons off.' }
+    await update($, preview, () => m)
+    await follow($, scene, shown, sent)
+    return { text: `Showing ${NAMES[m]} for this session. /seasons auto goes back to the calendar.` }
   })
 
   on('turn.start', ($, e, next) => {
-    haunt.mood = 'working'
+    scene.mood = 'working'
     return next(e)
   })
 
   on('turn.complete', ($, e, next) => {
-    if (haunt.mood === 'working') haunt.cheer()
-    haunt.mood = 'idle'
+    if (scene.mood === 'working') scene.cheer()
+    scene.mood = 'idle'
     return next(e)
   })
 
   on('tool.call', ($, e, next) => {
-    haunt.toolCall()
+    scene.toolCall()
     return next(e)
   })
 
   on('prompt.submit', ($, e, next) => {
-    haunt.dismissGreeting()
+    scene.dismissGreeting()
     return next(e)
   })
 
   on('prompt.edit', async ($, e, next) => {
     const r = await next(e)
-    if (live() && promptColumns > 0) await track($, haunt, promptColumns, true)
+    if (live() && promptColumns > 0) await track($, scene, promptColumns, true)
     return r
   })
 
   on('prompt.change', async ($, e, next) => {
     const r = await next(e)
-    if (live() && promptColumns > 0) await track($, haunt, promptColumns, false)
+    if (live() && promptColumns > 0) await track($, scene, promptColumns, false)
     return r
   })
 
   // a message in the transcript (a resumed session, say): no greeting
   on('ui.render', { component: 'UserMessage' }, ($, e, next) => {
-    haunt.dismissGreeting()
+    scene.dismissGreeting()
     return next(e)
   })
 
   on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => {
     if (e.surface !== 'terminal' || !e.props.text.startsWith(SENTINEL)) return next(e)
     const { Box, Raster } = $.ui.resolve(e)
-    inSeason = isHalloweenSeason(await $.clock.now())
-    if (!inSeason || !(await read($, enabled))) {
+    await follow($, scene, shown, sent)
+    if (!(await read($, enabled))) {
       header = null
       greeting = null
       return <Box />
@@ -201,8 +243,8 @@ export const register: Register = on => {
       ...(right < W - 6 ? [{ key: 'right', x: right, y: 2, w: W - right, h: 2 }] : []),
       { key: 'yard', x: 0, y: 4, w: W, h: 2 },
     ]
-    header = { requestId: e.requestId, blocks, canvas: () => haunt.header(info) }
-    const cv = haunt.header(info)
+    header = { requestId: e.requestId, blocks, canvas: () => scene.header(info) }
+    const cv = scene.header(info)
     const place = (b: Block, top: number, left: number) => (
       <Box key={`at-${b.key}`} position="absolute" top={top} left={left}>
         <Raster key={b.key} columns={b.w} rows={b.h} cells={cv.pack(b.x, b.y, b.w, b.h)} />
@@ -211,14 +253,14 @@ export const register: Register = on => {
     for (const b of blocks) sent.set(`${e.requestId}/${b.key}`, '')
 
     let thread = null
-    if (haunt.greet !== null) {
+    if (scene.greet !== null) {
       const rows = Math.max(3, Math.min(12, Math.floor((e.viewport?.rows ?? 40) * 0.3)))
       const g: Block = { key: 'greet', x: 0, y: 0, w: 1, h: rows }
-      greeting = { requestId: e.requestId, blocks: [g], canvas: () => haunt.greeting(rows) }
+      greeting = { requestId: e.requestId, blocks: [g], canvas: () => scene.greeting(rows) }
       sent.set(`${e.requestId}/greet`, '')
       thread = (
         <Box key="at-greet" position="absolute" top={1} left={W - 9 - GUTTER}>
-          <Raster key="greet" columns={1} rows={rows} cells={haunt.greeting(rows).pack(0, 0, 1, rows)} />
+          <Raster key="greet" columns={1} rows={rows} cells={scene.greeting(rows).pack(0, 0, 1, rows)} />
         </Box>
       )
     }
@@ -232,7 +274,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    inSeason = isHalloweenSeason(await $.clock.now())
+    await follow($, scene, shown, sent)
     isOn = await read($, enabled)
     if (e.surface !== 'terminal' || !live()) {
       prompt = null
@@ -257,7 +299,7 @@ export const register: Register = on => {
           { key: 'bottom', x: 0, y: bottomRow, w: W, h: 1 },
         ]
       : []
-    const draw = () => haunt.prompt(W, paint, rows, status)
+    const draw = () => scene.prompt(W, paint, rows, status)
     prompt = paint ? { requestId: e.requestId, blocks, canvas: draw } : null
     for (const b of blocks) sent.set(`${e.requestId}/${b.key}`, '')
     const cv = draw()
@@ -297,11 +339,11 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Spinner' }, ($, e, next) =>
     live() && e.props.message === null
-      ? next({ ...e, props: { ...e.props, word: spookyWord(e.props.word) } })
+      ? next({ ...e, props: { ...e.props, word: scene.verb(e.props.word) } })
       : next(e),
   )
 
   on('ui.render', { component: 'TurnDuration' }, ($, e, next) =>
-    live() ? next({ ...e, props: { ...e.props, word: spookyPast(e.props.word) } }) : next(e),
+    live() ? next({ ...e, props: { ...e.props, word: scene.past(e.props.word) } }) : next(e),
   )
 }

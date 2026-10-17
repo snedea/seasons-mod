@@ -1,28 +1,47 @@
 # seasons
 
-A Claude Code mod that dresses the terminal itself for the month, instead of adding a banner.
+A Claude Code mod that dresses the terminal for the month. Nothing is added as a banner: it
+decorates what is already there.
 
-**October: Halloween.**
+![October](docs/screenshots/10-october.png)
 
-- **The logo block** is painted over: Clawd wears a witch hat, the title line turns pumpkin orange
-  with a tagline that changes now and then, a moon sits on the right with a cloud drifting past,
-  and a cobweb hangs in the top right corner with its spider on a thread. Under the logo, one row
-  of graveyard: jack-o'-lanterns at Clawd's feet, tombstones, and a ghost drifting about.
-- **The prompt box** gets a purple-to-orange border and a corner web hanging from its top right
-  corner, on the right where it stays clear of your draft and the newest text (and steps off the
-  draft's row when a long line reaches it). A spider lives on the top border: it scuttles over to your caret while you type, patrols while Claude works, ties
-  a knot of silk at every tool call, and takes the silk back in once the turn is done. A ghost
-  drifts along the bottom border while a turn runs.
-- **Before your first prompt** a spider lets itself down into the empty screen on a silk thread to
-  say hello, and climbs home when you send something.
-- While Claude works, Clawd holds out a lantern and every tool call lets a bat fly out of the hat.
-  Clawd hops when the turn ends. The spinner says things like "Conjuring..." and the closing line
-  "Brewed for 12s".
+- **The logo block** is painted over: Clawd wears the month's hat (and holds something while
+  Claude works), the title line takes the month's colors with a tagline that changes now and then,
+  and the sky at the right holds a moon, a sun, a rainbow or a heart. Under the logo, one row of
+  ground with a few props and someone wandering about.
+- **The prompt box** gets the month's border colors and a decoration hanging from its top right
+  corner, on the right where it stays clear of your draft and the newest text (it steps off the
+  draft's row when a long line reaches it). A critter lives on the top border: it runs to your
+  caret while you type, patrols while Claude works, leaves a little something at every tool call,
+  and tidies up once the turn is done. Something drifts along the bottom border while a turn runs.
+- **Every tool call** sends something out of Clawd's hat across the top row (bats, birds, geese,
+  paper airplanes, fireworks, shooting stars). Clawd hops when a turn ends.
+- **Before your first prompt** something comes down into the empty screen to say hello and goes
+  home when you send something.
+- **The spinner and the closing line** speak the month ("Raising the dead…", "Brewed for 12s").
+  Every word is listed in [docs/SAYINGS.md](docs/SAYINGS.md).
 
 Nothing flashes: every light change is a slow fade. Bash mode keeps the engine's own border color.
-
-Outside October nothing is drawn. `/halloween` turns it off and on, remembered across sessions.
 Terminal only.
+
+## The months
+
+| | | |
+|---|---|---|
+| ![January](docs/screenshots/01-january.png) | ![February](docs/screenshots/02-february.png) | ![March](docs/screenshots/03-march.png) |
+| ![April](docs/screenshots/04-april.png) | ![May](docs/screenshots/05-may.png) | ![June](docs/screenshots/06-june.png) |
+| ![July](docs/screenshots/07-july.png) | ![August](docs/screenshots/08-august.png) | ![September](docs/screenshots/09-september.png) |
+| ![October](docs/screenshots/10-october.png) | ![November](docs/screenshots/11-november.png) | ![December](docs/screenshots/12-december.png) |
+
+Each was taken mid-turn on "Count pi to 1000 digits", with `scripts/shoot.sh`.
+
+## Commands
+
+- `/seasons` turns the decorations off or on (remembered across sessions); `/seasons off`,
+  `/seasons on` say which.
+- `/seasons mar` (or `march`, or `3`) shows another month for this session; `/seasons auto` goes
+  back to the calendar.
+- `SEASONS_MONTH=3 claude` starts a session on that month.
 
 ## Install
 
@@ -60,6 +79,13 @@ logo decorations wait for a start without them; the prompt box is decorated rega
 
 The prompt decorations assume the fullscreen layout (`"tui": "fullscreen"`) and a status line of
 at most one row.
+
+## Making a month
+
+Each month is one file in `hooks/months/`: what Clawd wears and holds, the sky, the flyers, the
+ground row, the corner decoration, the critter, and colors. Its words are in `hooks/words.ts`.
+`hooks/scene.ts` moves and places everything. After changing words, run `node scripts/sayings.ts`;
+after changing looks, `scripts/shoot.sh <month number>` retakes that screenshot.
 
 ## Credits
 
