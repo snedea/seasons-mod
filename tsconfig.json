@@ -1,0 +1,7 @@
+{
+  "extends": "./.claude-plugin/types/tsconfig.json",
+  "compilerOptions": {
+    // pixel buffers and sprite rows are indexed by computed, bounds-checked coordinates
+    "noUncheckedIndexedAccess": false
+  }
+}

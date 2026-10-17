@@ -1,0 +1,9 @@
+{
+  "name": "seasons",
+  "version": "0.1.0",
+  "description": "Seasonal pixel-art night above the prompt. October: a Halloween graveyard where Clawd, in a witch hat, keeps watch.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "snedea"
+  }
+}
